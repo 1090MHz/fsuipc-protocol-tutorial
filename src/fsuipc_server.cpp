@@ -57,16 +57,11 @@
  */
 
 #include "fsuipc_ipc.h"
+#include "fsuipc_offset_api.h"
 
-#define _USE_MATH_DEFINES
 #include <windows.h>
-#include <cstdint>
-#include <cstring>
-#include <cmath>
-#include <ctime>
 #include <iostream>
 #include <iomanip>
-#include <sstream>
 #include <atomic>
 #include <thread>
 #include <mutex>
@@ -84,137 +79,15 @@ alignas(8) static uint8_t  g_OffsetMem[OFFSET_MEM_SIZE];
 static std::mutex           g_OffsetMutex;
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Offset memory accessors
+// Simulation state updater
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * @brief  Write a typed value into the offset memory at a given FSUIPC offset.
- * @note   Caller must hold g_OffsetMutex.
- */
-template<typename T>
-static inline void WriteOff(uint32_t off, const T& val) noexcept {
-    if (off + sizeof(T) <= OFFSET_MEM_SIZE) {
-        std::memcpy(&g_OffsetMem[off], &val, sizeof(T));
-    }
-}
-
-/**
- * @brief  Read a typed value from the offset memory.
- * @note   Caller must hold g_OffsetMutex.
- */
-template<typename T>
-static inline T ReadOff(uint32_t off) noexcept {
-    T v{};
-    if (off + sizeof(T) <= OFFSET_MEM_SIZE) {
-        std::memcpy(&v, &g_OffsetMem[off], sizeof(T));
-    }
-    return v;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Encoding helpers
-// ─────────────────────────────────────────────────────────────────────────────
-
-/** Heading / bank / pitch raw encoding helper: degrees → raw DWORD. */
-static inline uint32_t EncHeading(double deg) noexcept {
-    return static_cast<uint32_t>(fmod(deg, 360.0) * 65536.0 / 360.0);
-}
-
-/** Signed pitch: degrees → raw (positive = nose up). */
-static inline int32_t EncPitch(double deg) noexcept {
-    return static_cast<int32_t>(deg * 65536.0 * 65536.0 / 360.0);
-}
-
-/** Ground speed: m/s → raw DWORD (m/s × 65536). */
-static inline uint32_t EncGS(double mps) noexcept {
-    return static_cast<uint32_t>(mps * 65536.0);
-}
-
-/** IAS: knots → raw DWORD (knots × 128). */
-static inline uint32_t EncIAS(double kts) noexcept {
-    return static_cast<uint32_t>(kts * 128.0);
-}
-
-/** Vertical speed: m/s → raw int32 (m/s × 256, signed). */
-static inline int32_t EncVS(double mps) noexcept {
-    return static_cast<int32_t>(mps * 256.0);
-}
-
-/** Barometric pressure: mb → raw WORD (mb × 16). */
-static inline uint16_t EncBaro(double mb) noexcept {
-    return static_cast<uint16_t>(mb * 16.0);
-}
-
-/**
- * @brief  Latitude: decimal degrees → signed QWORD.
- * @details
- *   From the FSUIPC SDK "Offsets Status" document:
- *     raw = lat_deg × (10001750.0 / 90.0) × 65536.0 × 65536.0
- */
-static inline int64_t EncLat(double deg) noexcept {
-    return static_cast<int64_t>(deg * (10001750.0 / 90.0) * 65536.0 * 65536.0);
-}
-
-/**
- * @brief  Longitude: decimal degrees → signed QWORD.
- * @details
- *   The longitude fills the full INT64 range for ±180°.
- *   Encode: raw = deg / 180.0 × INT64_MAX
- */
-static inline int64_t EncLon(double deg) noexcept {
-    // Normalise to [-180, +180)
-    while (deg >  180.0) deg -= 360.0;
-    while (deg < -180.0) deg += 360.0;
-    return static_cast<int64_t>(deg / 180.0 * static_cast<double>(INT64_MAX));
-}
-
-/**
- * @brief  Altitude MSL: metres → signed QWORD (metres × 65536).
- */
-static inline int64_t EncAlt(double m) noexcept {
-    return static_cast<int64_t>(m * 65536.0);
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Simulation state & updater thread
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * @brief  All mutable flight-data parameters for the simulated aircraft.
- */
-struct SimState {
-    double heading_deg  = 270.0;    ///< Magnetic heading (degrees, W = 270)
-    double ias_kts      = 445.0;    ///< Indicated airspeed (knots)
-    double gs_mps       = 240.0;    ///< Ground speed (m/s ≈ 467 kts)
-    double vs_mps       = 2.54;     ///< Vertical speed (m/s ≈ 500 fpm climb)
-    double alt_m        = 10363.0;  ///< Altitude MSL (m ≈ 34,000 ft, climbing)
-    double lat_deg      =  51.477;  ///< Latitude  (London Heathrow area, °N)
-    double lon_deg      =  -0.461;  ///< Longitude (London Heathrow area, °W)
-    double pitch_deg    =   1.5;    ///< Pitch (°, positive = nose up)
-    double baro_mb      = 1013.25;  ///< Altimeter setting (mb, ISA standard)
-    bool   on_ground    =   false;  ///< On-ground flag
-};
-
-/**
- * @brief  Write the current SimState into g_OffsetMem.
+ * @brief  Write the current SimState into g_OffsetMem using the offset table.
  * @note   Caller must hold g_OffsetMutex.
  */
 static void FlushSimState(const SimState& s) noexcept {
-    // ── Internal version offsets (required by FSUIPC_Open to validate) ───────
-    WriteOff<uint32_t>(FSUIPC::VERSION,    FSUIPC_SIM_VERSION);   // 0x70000001 = v7.0.0 build a
-    WriteOff<uint32_t>(FSUIPC::FS_VERSION, FSUIPC_FS_TYPE_VALUE);
-
-    // ── 10 flight-data offsets ────────────────────────────────────────────────
-    WriteOff<uint32_t>(FSUIPC::MAG_HEADING,  EncHeading(s.heading_deg));
-    WriteOff<uint32_t>(FSUIPC::GROUND_SPEED, EncGS(s.gs_mps));
-    WriteOff<uint32_t>(FSUIPC::IAS,          EncIAS(s.ias_kts));
-    WriteOff<int32_t> (FSUIPC::VERT_SPEED,   EncVS(s.vs_mps));
-    WriteOff<uint16_t>(FSUIPC::ALTIMETER,    EncBaro(s.baro_mb));
-    WriteOff<uint16_t>(FSUIPC::ON_GROUND,    s.on_ground ? 1u : 0u);
-    WriteOff<int64_t> (FSUIPC::LATITUDE,     EncLat(s.lat_deg));
-    WriteOff<int64_t> (FSUIPC::LONGITUDE,    EncLon(s.lon_deg));
-    WriteOff<int64_t> (FSUIPC::ALTITUDE_MSL, EncAlt(s.alt_m));
-    WriteOff<int32_t> (FSUIPC::PITCH,        EncPitch(s.pitch_deg));
+    EncodeAllOffsets(s, g_OffsetMem);
 }
 
 static std::atomic<bool> g_Running{true};
@@ -241,7 +114,7 @@ static void SimulatorThread() {
         elapsed_s += 0.5;
 
         // ── Slowly rotate heading (0.3 °/s, right-hand turn) ─────────────────
-        s.heading_deg = fmod(s.heading_deg + 0.15, 360.0);
+        s.heading_deg = std::fmod(s.heading_deg + 0.15, 360.0);
 
         // ── IAS oscillates gently around cruise speed ─────────────────────────
         s.ias_kts = 445.0 + 5.0 * std::sin(elapsed_s * 0.05);
@@ -425,46 +298,36 @@ static BOOL WINAPI ConsoleCtrlHandler(DWORD) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 static void PrintBanner() {
-    // Table of all served offsets for the startup printout.
-    static const struct { uint32_t off; uint32_t sz; const char* name; const char* units; }
-    kOffsets[] = {
-        { 0x3304, 4, "FSUIPC Version       ", "HIWORD=ver×1000, LOWORD=build"               },
-        { 0x3308, 4, "FS Version / Validity", "0xFADE0000 | FS_type"                        },
-        { 0x2380, 4, "Magnetic Heading     ", "deg x 65536/360              (DWORD)"        },
-        { 0x02B4, 4, "Ground Speed         ", "m/s x 65536                  (DWORD)"        },
-        { 0x02BC, 4, "Indicated Airspeed   ", "kts x 128                    (DWORD)"        },
-        { 0x02C8, 4, "Vertical Speed       ", "m/s x 256                    (DWORD signed)" },
-        { 0x0330, 2, "Altimeter Pressure   ", "mb x 16                      (WORD)"         },
-        { 0x0366, 2, "On Ground            ", "0=air, 1=ground              (WORD)"         },
-        { 0x0560, 8, "Latitude             ", "deg x(10001750/90 x 65536^2) (QWORD sgn)"    },
-        { 0x0568, 8, "Longitude            ", "deg/180 x INT64_MAX          (QWORD sgn)"    },
-        { 0x0570, 8, "Altitude MSL         ", "m x 65536                    (QWORD sgn)"    },
-        { 0x0578, 4, "Pitch Angle          ", "deg x 65536^2/360            (DWORD signed)" },
-    };
+    // Use the offset table from fsuipc_offsets.h
+    size_t count;
+    const OffsetEncoder* table = GetOffsetTable(count);
 
     std::cout <<
         "\n"
         "+======================================================================+\n"
-        "|       FSUIPC IPC Server  -  10 Simulated Flight-Data Offsets        |\n"
+        "|       FSUIPC IPC Server  -  " << count << " Simulated Flight-Data Offsets        |\n"
         "+======================================================================+\n"
         "|  Protocol : FS6IPC  (RegisterWindowMessage(\"FsasmLib:IPC\"))         |\n"
         "|  Window   : UIPCMAIN  (FindWindowEx-discoverable, top-level)        |\n"
         "|  Scenario : Cruise climb FL340->FL370 outbound from London Heathrow |\n"
-        "+----------+-------+--------------------------+----------------------+\n"
-        "|  Offset  | Bytes | Name                     | Encoding             |\n"
-        "+----------+-------+--------------------------+----------------------+\n";
+        "|  Architecture: TABLE-DRIVEN (easily scales to 100+ offsets)         |\n"
+        "+----------+-------+----------------------------------------------+\n"
+        "|  Offset  | Bytes | Description                                  |\n"
+        "+----------+-------+----------------------------------------------+\n";
 
-    for (const auto& o : kOffsets) {
+    for (size_t i = 0; i < count; ++i) {
         std::cout
-            << "|  0x" << std::hex << std::setw(4) << std::setfill('0') << o.off
+            << "|  0x" << std::hex << std::setw(4) << std::setfill('0') << table[i].offset
             << std::dec << std::setfill(' ')
-            << "  |   " << o.sz << "   | "
-            << std::left << std::setw(24) << o.name << " | "
-            << std::setw(20) << o.units << " |\n";
+            << "  |   " << table[i].size << "   | "
+            << std::left << std::setw(44) << table[i].description << " |\n";
     }
 
     std::cout <<
-        "+----------+-------+--------------------------+----------------------+\n"
+        "+----------+-------+----------------------------------------------+\n"
+        "\n"
+        "To add more offsets: see fsuipc_offsets.h\n"
+        "For scaling guidance: see docs/SCALING.md\n"
         "\n";
 }
 
