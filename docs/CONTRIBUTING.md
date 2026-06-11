@@ -35,7 +35,7 @@ Documentation is as important as code! Help by:
 
 Add support for more FSUIPC offsets:
 
-1. **Choose an offset** from the [official list](http://fsuipcoffsets.com/)
+1. **Choose an offset**
 2. **Add to offset table** (`fsuipc_offset_table.h`):
    ```cpp
    // In g_OffsetEncoderTable[]:
