@@ -72,7 +72,7 @@ Heading 270.5°:
 **Encoding:**
 
 ```
-HIWORD = version × 1000
+HIWORD = version digits as BCD hex (each nibble = one decimal digit, e.g. v7.0 → 0x7000)
 LOWORD = build number
 ```
 
@@ -81,8 +81,9 @@ LOWORD = build number
 ```cpp
 uint32_t version = 0x70000001;
 
-uint16_t major_minor = version >> 16;  // 0x7000 = 28672
-double version_num = major_minor / 1000.0;  // 28.672 = version 7.0
+uint16_t ver_bcd = version >> 16;  // 0x7000 → nibbles: 7, 0, 0, 0 → version 7.0
+int major = (ver_bcd >> 12) & 0xF;  // 7
+int minor = (ver_bcd >>  8) & 0xF;  // 0
 
 uint16_t build = version & 0xFFFF;  // 0x0001 = build 1
 ```
@@ -91,11 +92,15 @@ uint16_t build = version & 0xFFFF;  // 0x0001 = build 1
 
 ```cpp
 std::string DecodeFSUIPCVersion(uint32_t raw) {
-    uint16_t ver = (raw >> 16);
+    uint16_t ver   = (raw >> 16);
     uint16_t build = (raw & 0xFFFF);
 
+    // Each hex nibble is one decimal digit (BCD-like)
+    int major = (ver >> 12) & 0xF;
+    int minor = (ver >>  8) & 0xF;
+    int patch = (ver >>  4) & 0xF;
     char buf[32];
-    sprintf(buf, "%.3f build %d", ver / 1000.0, build);
+    sprintf(buf, "%d.%d%d build %d", major, minor, patch, build);
     return buf;
 }
 ```
@@ -181,7 +186,7 @@ uint32_t EncodeHeading(double degrees) {
 | 90.0° | `0x00004000` | 90 × 65536 / 360 = 16384 |
 | 180.0° | `0x00008000` | 180 × 65536 / 360 = 32768 |
 | 270.0° | `0x0000C000` | 270 × 65536 / 360 = 49152 |
-| 359.9° | `0x0000FFEE` | 359.9 × 65536 / 360 ≈ 65518 |
+| 359.9° | `0x0000FFED` | 359.9 × 65536 / 360 ≈ 65517 |
 
 **Precision:** ~0.0055° per increment
 
@@ -217,10 +222,10 @@ int64_t EncodeLatitude(double degrees) {
 | Latitude | Raw Value | Notes |
 |----------|-----------|-------|
 | 0.0° (Equator) | `0x0000000000000000` | Zero |
-| +51.4770° (London) | `0x000000B123456789` | Positive = North |
-| -33.9461° (Sydney) | `0xFFFFFF4EDCBA9876` | Negative = South |
-| +90.0° (North Pole) | `0x4E47FD8B54A3F800` | Maximum |
-| -90.0° (South Pole) | `0xB1B8027A4AB5C800` | Minimum |
+| +51.4770° (London) | `0x00574A5B9BBBBBBC` | Positive = North (approx) |
+| -33.9461° (Sydney) | `0xFFC66FDF0C4D5E6E` | Negative = South (approx) |
+| +90.0° (North Pole) | `0x00989D5600000000` | Maximum |
+| -90.0° (South Pole) | `0xFF6762AA00000000` | Minimum |
 
 **Precision:** ~0.000000006° (~0.7mm)
 
@@ -260,8 +265,8 @@ int64_t EncodeLongitude(double degrees) {
 | Longitude | Raw Value | Notes |
 |-----------|-----------|-------|
 | 0.0° (Prime Meridian) | `0x0000000000000000` | Greenwich |
-| -0.4610° (London) | `0xFFFFFFFFFFE12345` | West (negative) |
-| +151.2099° (Sydney) | `0x0012345678ABCDEF` | East (positive) |
+| -0.4610° (London) | `0xFFAC13D7C4A74C80` | West (negative, approx) |
+| +151.2099° (Sydney) | `0x6B86EC17EBAF1000` | East (positive, approx) |
 | +180.0° (Date Line) | `0x7FFFFFFFFFFFFFFF` | Maximum |
 | -180.0° (Date Line) | `0x8000000000000000` | Minimum |
 
@@ -302,9 +307,9 @@ int64_t EncodeAltitude(double meters) {
 | Altitude | Meters | Raw Value | Notes |
 |----------|--------|-----------|-------|
 | Sea level | 0m | `0x0000000000000000` | Zero |
-| FL100 | 3,048m | `0x0000000000BF0000` | 10,000 ft |
-| FL340 | 10,363m | `0x0000000028760000` | Cruise altitude |
-| Everest | 8,848m | `0x0000000022C00000` | 29,029 ft |
+| FL100 | 3,048m | `0x000000000BE80000` | 10,000 ft |
+| FL340 | 10,363m | `0x00000000287B0000` | Cruise altitude |
+| Everest | 8,848m | `0x0000000022900000` | 29,029 ft |
 
 **Precision:** ~0.000015m (~0.05mm)
 
@@ -340,11 +345,11 @@ int32_t EncodePitch(double degrees) {
 | Pitch | Raw Value | Notes |
 |-------|-----------|-------|
 | 0.0° (Level) | `0x00000000` | Horizon |
-| +5.0° (Climb) | `0x05A00000` | Typical climb |
-| -3.0° (Descent) | `0xFCA60000` | Typical descent |
-| +15.0° (Steep climb) | `0x10F00000` | Takeoff |
+| +5.0° (Climb) | `0x038E38E3` | Typical climb |
+| -3.0° (Descent) | `0xFDDDDDDE` | Typical descent |
+| +15.0° (Steep climb) | `0x0AAAAAAA` | Takeoff |
 
-**Precision:** ~0.0000084° (~0.03 arc-seconds)
+**Precision:** ~0.000000084° (~0.0003 arc-seconds)
 
 ---
 
@@ -616,19 +621,17 @@ Process();
 
 ## Adding New Offsets
 
-### Step 1: Add to Server
+### Step 1: Add to Offset Table
 
-**In `fsuipc_server.cpp`:**
+**In `fsuipc_offset_table.h`:**
 
 ```cpp
-// Add to FlushSimState()
-void FlushSimState(const SimState& s) {
-    // ... existing code ...
-
-    // New offset: 0x0BC0 - Rudder position
-    int16_t rudder_raw = static_cast<int16_t>(s.rudder_pct * 16384.0);
-    WriteOff(0x0BC0, rudder_raw);
-}
+// Add to g_OffsetEncoderTable[]:
+{ 0x0BC0, 2,
+  [](const SimState& s, uint8_t* buf) {
+      WriteOffset<int16_t>(buf, 0x0BC0, static_cast<int16_t>(s.rudder_pct * 16384.0));
+  },
+  "Rudder position (-16384 = full left, +16384 = full right)" },
 ```
 
 ### Step 2: Add to Simulator State
@@ -698,8 +701,7 @@ std::cout << "Rudder: " << (rudder_pct * 100.0) << "%\n";
 ## References
 
 - [Official FSUIPC Offsets](http://fsuipcoffsets.com/) - Complete list
-- [Pete Dowson's Documentation](http://www.schiratti.com/dowson.html) - Original FSUIPC docs
-- [FSUIPC SDK](http://www.schiratti.com/dowson.html) - Headers and examples
+- [Pete Dowson's Documentation](http://www.schiratti.com/dowson.html) - Original FSUIPC docs and SDK downloads
 
 ---
 

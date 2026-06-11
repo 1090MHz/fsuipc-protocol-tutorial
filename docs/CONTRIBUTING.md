@@ -36,11 +36,14 @@ Documentation is as important as code! Help by:
 Add support for more FSUIPC offsets:
 
 1. **Choose an offset** from the [official list](http://fsuipcoffsets.com/)
-2. **Implement in server** (`fsuipc_server.cpp`):
+2. **Add to offset table** (`fsuipc_offset_table.h`):
    ```cpp
-   // In FlushSimState():
-   uint32_t new_offset_raw = EncodeNewOffset(state.new_value);
-   WriteOff(0xXXXX, new_offset_raw);
+   // In g_OffsetEncoderTable[]:
+   { 0xXXXX, N,
+     [](const SimState& s, uint8_t* buf) {
+         WriteOffset<uint32_t>(buf, 0xXXXX, EncodeNewOffset(s.new_value));
+     },
+     "Description of new offset" },
    ```
 3. **Add decoding function** with examples
 4. **Update documentation** (`OFFSETS.md`)

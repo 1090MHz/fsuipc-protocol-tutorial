@@ -134,7 +134,7 @@ DWORD HandleIPCMessage(WPARAM wParam, LPARAM lParam) {
 
 | Offset | Size | Description    | Encoding                              |
 | ------ | ---- | -------------- | ------------------------------------- |
-| 0x3304 | 4    | FSUIPC Version | `HIWORD=ver×1000, LOWORD=build`       |
+| 0x3304 | 4    | FSUIPC Version | `HIWORD=BCD hex digits (e.g. 7.0→0x7000), LOWORD=build` |
 | 0x3308 | 4    | FS Version     | `0xFADE0000 \| FS_type`               |
 | 0x0238 | 4    | Heading        | `deg × 65536 / 360`                   |
 | 0x02B4 | 4    | Ground Speed   | `m/s × 65536`                         |
