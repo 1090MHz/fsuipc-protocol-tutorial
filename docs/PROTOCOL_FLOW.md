@@ -242,7 +242,7 @@ Offset  Content                                 Description
 0x0014  02 00 00 00                            dwId = 2 (WRITE)
 0x0018  DC 07 00 00                            dwOffset = 0x07DC (AP heading)
 0x001C  04 00 00 00                            nBytes = 4
-0x0020  00 00 87 43                            Data: 270.0 degrees (encoded)
+0x0020  00 C0 00 00                            Data: 270° × 65536/360 = 49152 (encoded)
 
 0x0024  01 00 00 00                            dwId = 1 (READ)
 0x0028  60 05 00 00                            dwOffset = 0x0560 (latitude)
@@ -267,7 +267,7 @@ Offset  Content                                 Description
 0x0014  02 00 00 00                            dwId = 2 (WRITE)
 0x0018  DC 07 00 00                            dwOffset = 0x07DC
 0x001C  04 00 00 00                            nBytes = 4
-0x0020  00 00 87 43                            (unchanged - write request)
+0x0020  00 C0 00 00                            (unchanged - write request)
 
 0x0024  01 00 00 00                            dwId = 1 (READ)
 0x0028  60 05 00 00                            dwOffset = 0x0560

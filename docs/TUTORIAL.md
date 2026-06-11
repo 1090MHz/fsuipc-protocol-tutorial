@@ -375,13 +375,13 @@ struct IPC_WritePacket {
 
 **Size:** 12 bytes
 
-**Example (set heading hold to 270°):**
+**Example (set autopilot heading bug to 270°):**
 
 ```
 dwId      = 0x00000002
-dwOffset  = 0x000007CC  (autopilot heading hold)
-nBytes    = 0x00000002  (2 bytes)
-[2 bytes] = 0x010E      (270° in degrees)
+dwOffset  = 0x000007DC  (autopilot heading bug)
+nBytes    = 0x00000004  (4 bytes)
+[4 bytes] = 0x0000C000  (270° × 65536 / 360 = 49152)
 ```
 
 ### Why `#pragma pack(1)`?
@@ -596,8 +596,8 @@ For flight sim IPC (small payloads, low latency), shared memory is **optimal**.
     // ... encode 50 more values ...
 
     // Write
-    WriteOff(0x0238, heading_raw);
-    WriteOff(0x0570, alt_raw);
+    WriteOffset<uint32_t>(g_OffsetMem, 0x0238, heading_raw);
+    WriteOffset<int64_t>(g_OffsetMem, 0x0570, alt_raw);
 }
 
 // ✅ GOOD: Encode outside lock
@@ -613,8 +613,8 @@ int64_t alt_raw = static_cast<int64_t>(altitude * 65536.0);
 // Quick write (only this needs the lock)
 {
     std::lock_guard<std::mutex> lock(g_OffsetMutex);
-    WriteOff(0x0238, heading_raw);
-    WriteOff(0x0570, alt_raw);
+    WriteOffset<uint32_t>(g_OffsetMem, 0x0238, heading_raw);
+    WriteOffset<int64_t>(g_OffsetMem, 0x0570, alt_raw);
     // ... write 50 values ...
 }  // Lock held for minimal time
 ```

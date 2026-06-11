@@ -514,12 +514,12 @@ DWORD HandleIPCMessage(WPARAM wParam, LPARAM lParam) {
 
 ### Scaling to 100+ Offsets
 
-**Current: Manual encoding**
+**Simple approach (without table):**
 
 ```cpp
 void FlushSimState(const SimState& s) {
-    WriteOff(0x0238, EncodeHeading(s.heading_deg));
-    WriteOff(0x02B4, EncodeGS(s.gs_mps));
+    WriteOffset<uint32_t>(g_OffsetMem, 0x0238, EncodeHeading(s.heading_deg));
+    WriteOffset<uint32_t>(g_OffsetMem, 0x02B4, EncodeGroundSpeed(s.gs_mps));
     // ... 10 more offsets
 }
 ```
