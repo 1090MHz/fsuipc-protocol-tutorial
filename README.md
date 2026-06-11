@@ -32,9 +32,12 @@ This repository provides a **production-ready reference implementation** of the 
 ```
 ├── CMakeLists.txt         # Build configuration
 ├── src/
-│   ├── fsuipc_ipc.h           # Protocol definitions (packets, constants, offsets)
-│   ├── fsuipc_server.cpp      # Complete server implementation with simulated data
-│   └── fsuipc_test_client.cpp # Client implementation demonstrating all features
+│   ├── fsuipc_ipc.h               # Protocol definitions (packets, constants, offsets)
+│   ├── fsuipc_offset_encoding.h   # Encoding helpers and SimState struct
+│   ├── fsuipc_offset_table.h      # Offset encoder table data
+│   ├── fsuipc_offset_api.h        # Public API for the offset encoder table
+│   ├── fsuipc_server.cpp          # Complete server implementation with simulated data
+│   └── fsuipc_test_client.cpp     # Client implementation demonstrating all features
 └── docs/
     ├── TUTORIAL.md            # Step-by-step IPC protocol walkthrough
     ├── PROTOCOL_FLOW.md       # Request/response mechanics explained
