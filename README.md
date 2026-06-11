@@ -148,27 +148,27 @@ Study a **real-world implementation** of:
 │                    FSUIPC IPC Server                        │
 ├─────────────────────────────────────────────────────────────┤
 │                                                             │
-│  ┌──────────────────┐      ┌──────────────────┐           │
-│  │  Win32 Window    │      │ Simulator Thread │           │
-│  │   "UIPCMAIN"     │      │  (Updates every  │           │
-│  │                  │      │    500ms)        │           │
-│  └────────┬─────────┘      └────────┬─────────┘           │
-│           │                         │                      │
-│           │ WM_COPYDATA            │ Writes                │
-│           ▼                         ▼                      │
-│  ┌────────────────────────────────────────┐               │
-│  │   IPC Message Handler                  │               │
-│  │   • GlobalGetAtomName                  │               │
-│  │   • OpenFileMapping (client's memory)  │               │
-│  │   • Process read/write packets         │               │
-│  └──────────────┬─────────────────────────┘               │
-│                 │                                          │
-│                 ▼                                          │
-│  ┌────────────────────────────────────────┐               │
-│  │   64KB Offset Memory (g_OffsetMem)    │  ◄── Mutex    │
-│  │   • Thread-safe with std::mutex        │   Protected   │
-│  │   • All FSUIPC offsets stored here     │               │
-│  └────────────────────────────────────────┘               │
+│  ┌──────────────────┐      ┌──────────────────┐             │
+│  │  Win32 Window    │      │ Simulator Thread │             │
+│  │   "UIPCMAIN"     │      │  (Updates every  │             │
+│  │                  │      │    500ms)        │             │
+│  └────────┬─────────┘      └────────┬─────────┘             │
+│           │                         │                       │
+│           │ WM_COPYDATA            │ Writes                 │
+│           ▼                         ▼                       │
+│  ┌────────────────────────────────────────┐                 │
+│  │   IPC Message Handler                  │                 │
+│  │   • GlobalGetAtomName                  │                 │
+│  │   • OpenFileMapping (client's memory)  │                 │
+│  │   • Process read/write packets         │                 │
+│  └──────────────┬─────────────────────────┘                 │
+│                 │                                           │
+│                 ▼                                           │
+│  ┌────────────────────────────────────────┐                 │
+│  │   64KB Offset Memory (g_OffsetMem)    │  ◄── Mutex       │
+│  │   • Thread-safe with std::mutex        │   Protected     │
+│  │   • All FSUIPC offsets stored here     │                 │
+│  └────────────────────────────────────────┘                 │
 │                                                             │
 └─────────────────────────────────────────────────────────────┘
                             ▲
@@ -179,14 +179,14 @@ Study a **real-world implementation** of:
 │                    FSUIPC Test Client                       │
 ├─────────────────────────────────────────────────────────────┤
 │                                                             │
-│  1. FindWindowEx(NULL, NULL, "UIPCMAIN", NULL)             │
-│  2. RegisterWindowMessage("FsasmLib:IPC")                  │
-│  3. CreateFileMapping("FsasmLib:IPC:<PID>:<n>")            │
-│  4. GlobalAddAtom(mapping name)                            │
-│  5. Write request packets to shared memory                 │
-│  6. SendMessageTimeout(hWnd, msg, atom, 0)                 │
-│  7. Read response data from shared memory                  │
-│  8. Cleanup: UnmapViewOfFile, CloseHandle                  │
+│  1. FindWindowEx(NULL, NULL, "UIPCMAIN", NULL)              │
+│  2. RegisterWindowMessage("FsasmLib:IPC")                   │
+│  3. CreateFileMapping("FsasmLib:IPC:<PID>:<n>")             │
+│  4. GlobalAddAtom(mapping name)                             │
+│  5. Write request packets to shared memory                  │
+│  6. SendMessageTimeout(hWnd, msg, atom, 0)                  │
+│  7. Read response data from shared memory                   │
+│  8. Cleanup: UnmapViewOfFile, CloseHandle                   │
 │                                                             │
 └─────────────────────────────────────────────────────────────┘
 ```
