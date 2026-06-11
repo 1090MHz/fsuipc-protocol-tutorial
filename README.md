@@ -154,7 +154,7 @@ Study a **real-world implementation** of:
 │  │                  │      │    500ms)        │             │
 │  └────────┬─────────┘      └────────┬─────────┘             │
 │           │                         │                       │
-│           │ WM_COPYDATA            │ Writes                 │
+│           │ WM_COPYDATA             │ Writes                │
 │           ▼                         ▼                       │
 │  ┌────────────────────────────────────────┐                 │
 │  │   IPC Message Handler                  │                 │
@@ -165,7 +165,7 @@ Study a **real-world implementation** of:
 │                 │                                           │
 │                 ▼                                           │
 │  ┌────────────────────────────────────────┐                 │
-│  │   64KB Offset Memory (g_OffsetMem)    │  ◄── Mutex       │
+│  │   64KB Offset Memory (g_OffsetMem)     │  ◄── Mutex      │
 │  │   • Thread-safe with std::mutex        │   Protected     │
 │  │   • All FSUIPC offsets stored here     │                 │
 │  └────────────────────────────────────────┘                 │
