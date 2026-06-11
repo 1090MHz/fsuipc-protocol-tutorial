@@ -1,4 +1,4 @@
-# Contributing to FS6IPC Protocol Tutorial
+# Contributing to FSUIPC Protocol Tutorial
 
 Thank you for your interest in contributing! This project aims to be **the definitive educational resource** for understanding the FS6IPC protocol used by all FSUIPC versions (1-7).
 
@@ -35,7 +35,7 @@ Documentation is as important as code! Help by:
 
 Add support for more FSUIPC offsets:
 
-1. **Choose an offset** from the [official list](http://fsuipcoffsets.com/)
+1. **Choose an offset**
 2. **Add to offset table** (`fsuipc_offset_table.h`):
    ```cpp
    // In g_OffsetEncoderTable[]:
